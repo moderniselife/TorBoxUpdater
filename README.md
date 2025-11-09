@@ -77,19 +77,46 @@ Search and add the best result automatically:
 node dist/index.js add --query "Ubuntu 24.04"
 ```
 
-## Docker
-Build:
+## Docker Compose
+1. Copy environment template:
 ```bash
-docker build -t torbox-updater .
+cp .env.example .env
+# Edit .env with your Prowlarr and TorBox credentials
 ```
-Run:
+
+2. Start services:
+```bash
+docker-compose up -d
+```
+
+3. Health check:
+```bash
+curl http://localhost:8080/health
+```
+
+The stack includes:
+- `torbox-updater` on port 8080
+- `prowlarr` on port 9696 (LinuxServer image)
+- Shared `media` network
+- Persistent `prowlarr_config` volume
+
+## GitHub Actions
+This repository includes a workflow that builds and pushes to GitHub Container Registry (GHCR) on pushes to `main`/`master`.
+
+Build locally and push manually:
+```bash
+docker build -t ghcr.io/moderniselife/torboxupdater:latest .
+docker push ghcr.io/moderniselife/torboxupdater:latest
+```
+
+Pull and run:
 ```bash
 docker run --rm -p 8080:8080 \
   -e PROWLARR_URL=http://prowlarr:9696 \
   -e PROWLARR_API_KEY=xxxxx \
   -e TORBOX_API_KEY=tb_xxxxx \
   -e OVERSEERR_AUTH=supersecret \
-  torbox-updater
+  ghcr.io/moderniselife/torboxupdater:latest
 ```
 
 ## Notes

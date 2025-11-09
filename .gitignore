@@ -2,3 +2,5 @@ docs/PLAN.md
 node_modules/*
 bun.lock
 package-lock.json
+.env
+.env.*

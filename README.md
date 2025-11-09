@@ -1,6 +1,15 @@
 # TorBox Updater
 
+[![Release](https://img.shields.io/github/v/release/moderniselife/TorBoxUpdater)](https://github.com/moderniselife/TorBoxUpdater/releases)
+[![Build Status](https://github.com/moderniselife/TorBoxUpdater/workflows/Build%20and%20Push%20to%20GHCR/badge.svg)](https://github.com/moderniselife/TorBoxUpdater/actions)
+[![License](https://img.shields.io/github/license/moderniselife/TorBoxUpdater)](LICENSE)
+[![Docker Pulls](https://img.shields.io/docker/pulls/ghcr.io/moderniselife/torboxupdater)](https://ghcr.io/moderniselife/torboxupdater)
+
 CLI/Webhook service that listens to Overseerr requests, searches Prowlarr for a torrent, and adds the magnet to TorBox via node-torbox-api.
+
+## Releases
+- [Latest Release](https://github.com/moderniselife/TorBoxUpdater/releases/latest) - Auto-incremented version and release notes
+- Docker image: `ghcr.io/moderniselife/torboxupdater:latest` and `ghcr.io/moderniselife/torboxupdater:vX.Y.Z`
 
 ## Features
 - Webhook endpoint for Overseerr notifications
@@ -101,7 +110,12 @@ The stack includes:
 - Persistent `prowlarr_config` volume
 
 ## GitHub Actions
-This repository includes a workflow that builds and pushes to GitHub Container Registry (GHCR) on pushes to `main`/`master`.
+This repository includes two workflows:
+
+- **build-push.yml**: Builds and pushes to GHCR for linux/amd64 (fast, default)
+- **build-push-multi.yml**: Multi-platform build for linux/amd64 and linux/arm64 (slower)
+
+Both trigger on pushes to `main`/`master` and manual dispatch.
 
 Build locally and push manually:
 ```bash

@@ -90,3 +90,7 @@ Updated: 2025-11-11 09:32:00 +11:00
 Updated: 2025-11-11 09:47:00 +11:00
 
 - Docker image now installs rclone and fuse3 (plus curl/ca-certificates) to support in-container rclone mounts.
+
+Updated: 2025-11-11 09:52:00 +11:00
+
+- Added GitHub Actions workflow to build/push a `develop` image on pushes to the `develop` branch: `.github/workflows/build-push-develop.yml`. Tags: `develop` and `develop-<sha>`.

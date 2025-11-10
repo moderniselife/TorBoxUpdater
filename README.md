@@ -26,6 +26,7 @@ The ultimate media automation orchestrator. SchröDrive seamlessly integrates wi
 ## Releases
 - [Latest Release](https://github.com/moderniselife/SchroDrive/releases/latest) - Auto-incremented version and release notes
 - Docker image: `ghcr.io/moderniselife/schrodrive:latest` and `ghcr.io/moderniselife/schrodrive:vX.Y.Z`
+- Develop image (auto-built on pushes to `develop`): `ghcr.io/moderniselife/schrodrive:develop`
 
 ## Features
 - Webhook endpoint for Overseerr notifications

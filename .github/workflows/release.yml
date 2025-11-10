@@ -36,23 +36,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Bump version and create tag
+      - name: Get current version and create tag
         id: version
         run: |
           CURRENT=$(node -p "require('./package.json').version")
-          IFS='.' read -ra PARTS <<< "$CURRENT"
-          MAJOR=${PARTS[0]}
-          MINOR=${PARTS[1]}
-          PATCH=${PARTS[2]}
-          PATCH=$((PATCH + 1))
-          NEW="$MAJOR.$MINOR.$PATCH"
-          npm version $NEW --no-git-tag-version
-          git add package.json
-          git commit -m "chore: bump version to $NEW"
-          git tag -a "v$NEW" -m "Release v$NEW"
-          git push origin "v$NEW"
-          git push
-          echo "version=$NEW" >> $GITHUB_OUTPUT
+          echo "version=$CURRENT" >> $GITHUB_OUTPUT
+          git tag -a "v$CURRENT" -m "Release v$CURRENT"
+          git push origin "v$CURRENT"
 
       - name: Build
         run: npm run build

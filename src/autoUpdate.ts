@@ -102,9 +102,7 @@ export function startAutoUpdater() {
     firstCheck = false;
   };
 
-  // Delay first check by 30 seconds to avoid immediate restart on startup
-  setTimeout(() => {
-    check();
-    setInterval(check, intervalMs);
-  }, 30_000);
+  // Run first check immediately, then schedule interval
+  check();
+  setInterval(check, intervalMs);
 }

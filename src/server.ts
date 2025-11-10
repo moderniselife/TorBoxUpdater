@@ -19,22 +19,22 @@ export function startServer() {
       }
 
       const payload = req.body || {};
-      const query = buildQueryFromPayload(payload);
+      const built = buildQueryFromPayload(payload);
 
-      if (!query) {
+      if (!built || !built.query) {
         return res.status(400).json({ ok: false, error: "No query could be derived from payload." });
       }
 
-      const results = await searchProwlarr(query);
+      const results = await searchProwlarr(built.query, { categories: built.categories });
       const best = pickBestResult(results);
       const magnet = getMagnet(best);
 
       if (!magnet) {
-        return res.status(404).json({ ok: false, error: "No magnet found in search results.", query, best });
+        return res.status(404).json({ ok: false, error: "No magnet found in search results.", query: built.query, best });
       }
 
       const added = await addMagnetToTorbox(magnet, best?.title);
-      res.json({ ok: true, query, chosen: best, torbox: added });
+      res.json({ ok: true, query: built.query, categories: built.categories, chosen: best, torbox: added });
     } catch (e: any) {
       res.status(500).json({ ok: false, error: e?.message || String(e) });
     }
@@ -45,14 +45,36 @@ export function startServer() {
   });
 }
 
-function buildQueryFromPayload(payload: any): string | undefined {
+function buildQueryFromPayload(payload: any): { query: string; categories?: string[] } | undefined {
   const subject: string | undefined = payload?.subject;
-  if (subject && subject.trim().length > 0) return subject.trim();
-
   const media = payload?.media || {};
   const title = media?.title || media?.name;
   const year = media?.year || media?.releaseYear;
-  if (title) return year ? `${title} ${year}` : title;
+  const mediaType = media?.media_type; // 'movie' or 'tv'
+  const tmdbId = media?.tmdbId;
 
-  return undefined;
+  let query = "";
+  if (subject && subject.trim().length > 0) {
+    query = subject.trim();
+  } else if (title) {
+    query = year ? `${title} ${year}` : title;
+    if (tmdbId && Number.isInteger(Number(tmdbId))) {
+      query += ` TMDB${tmdbId}`;
+    }
+  }
+
+  if (!query) return undefined;
+
+  const result: { query: string; categories?: string[] } = { query };
+
+  // Map media_type to Prowlarr categories if configured
+  const defaultCategories = {
+    movie: ["5000"], // Movies
+    tv: ["5000"], // TV (adjust as needed)
+  };
+  if (mediaType && defaultCategories[mediaType as keyof typeof defaultCategories]) {
+    result.categories = defaultCategories[mediaType as keyof typeof defaultCategories];
+  }
+
+  return result;
 }

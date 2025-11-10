@@ -30,6 +30,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Get package version
+        id: version
+        run: |
+          CURRENT=$(node -p "require('./package.json').version")
+          echo "version=$CURRENT" >> $GITHUB_OUTPUT
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -37,6 +43,7 @@ jobs:
           images: ${{ env.REGISTRY }}/moderniselife/schrodrive
           tags: |
             type=raw,value=develop
+            type=raw,value=develop:${{ steps.version.outputs.version }}-dev
             type=ref,event=branch
             type=sha,prefix=develop-
 

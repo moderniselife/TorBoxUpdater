@@ -1,15 +1,31 @@
-# TorBox Updater
+<p align="center">
+  <a href="https://github.com/moderniselife/SchroDrive">
+    <img src="assets/logo.png" alt="SchröDrive Logo" height="150">
+  </a>
+</p>
 
-[![Release](https://img.shields.io/github/v/release/moderniselife/TorBoxUpdater)](https://github.com/moderniselife/TorBoxUpdater/releases)
-[![Build Status](https://github.com/moderniselife/TorBoxUpdater/workflows/Build%20and%20Push%20to%20GHCR/badge.svg)](https://github.com/moderniselife/TorBoxUpdater/actions)
-[![License](https://img.shields.io/github/license/moderniselife/TorBoxUpdater)](LICENSE)
-[![Docker Pulls](https://img.shields.io/docker/pulls/ghcr.io/moderniselife/torboxupdater)](https://ghcr.io/moderniselife/torboxupdater)
+<p align="center">
+  <a href="https://github.com/moderniselife/SchroDrive">
+    <img src="https://img.shields.io/github/v/release/moderniselife/SchroDrive?style=for-the-badge&logo=github" alt="Release">
+  </a>
+  <a href="https://github.com/moderniselife/SchroDrive/actions">
+    <img src="https://img.shields.io/github/actions/workflow/status/moderniselife/SchroDrive/build-push.yml?branch=main&style=for-the-badge&logo=github-actions" alt="Build Status">
+  </a>
+  <a href="https://github.com/moderniselife/SchroDrive/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/moderniselife/SchroDrive?style=for-the-badge&logo=gnu" alt="License">
+  </a>
+  <a href="https://ghcr.io/moderniselife/schrodrive">
+    <img src="https://img.shields.io/docker/pulls/ghcr.io/moderniselife/schrodrive?style=for-the-badge&logo=docker" alt="Docker Pulls">
+  </a>
+</p>
 
-CLI/Webhook service that listens to Overseerr requests, searches Prowlarr for a torrent, and adds the magnet to TorBox via node-torbox-api.
+# SchröDrive
+
+The ultimate media automation orchestrator. SchröDrive seamlessly integrates with Overseerr to automatically search Prowlarr for the best torrents and deliver them to your preferred debrid service. Currently supporting TorBox with upcoming support for Real-Debrid, All-Debrid, and Premiumize.
 
 ## Releases
-- [Latest Release](https://github.com/moderniselife/TorBoxUpdater/releases/latest) - Auto-incremented version and release notes
-- Docker image: `ghcr.io/moderniselife/torboxupdater:latest` and `ghcr.io/moderniselife/torboxupdater:vX.Y.Z`
+- [Latest Release](https://github.com/moderniselife/SchroDrive/releases/latest) - Auto-incremented version and release notes
+- Docker image: `ghcr.io/moderniselife/schrodrive:latest` and `ghcr.io/moderniselife/schrodrive:vX.Y.Z`
 
 ## Features
 - Webhook endpoint for Overseerr notifications
@@ -18,6 +34,11 @@ CLI/Webhook service that listens to Overseerr requests, searches Prowlarr for a 
 - Adds magnet to TorBox
 - CLI for manual search/add
 - Docker image
+
+## 🚀 Coming Soon
+**Virtual Drive Mount Integration** - Seamlessly manage your downloaded content with automatic virtual drive mounting. SchröDrive will intelligently organize and mount completed downloads as virtual drives, providing instant access to your media library across your network. Experience transparent file management with zero manual intervention.
+
+**Multi-Provider Debrid Support** - Expand your download ecosystem beyond TorBox. SchröDrive will soon integrate with leading debrid services including Real-Debrid, All-Debrid, and Premiumize, giving you the flexibility to choose the optimal provider for your content needs. Switch between providers effortlessly or use multiple services in parallel for maximum availability and speed.
 
 ## Requirements
 - Node.js 18+
@@ -127,8 +148,8 @@ node dist/index.js add --query "Ubuntu 24.04"
 
 ### Step 1: Clone the repository
 ```bash
-git clone https://github.com/moderniselife/TorBoxUpdater.git
-cd TorBoxUpdater
+git clone https://github.com/moderniselife/SchroDrive.git
+cd SchroDrive
 ```
 
 ### Step 2: Configure environment variables
@@ -151,7 +172,7 @@ TORBOX_BASE_URL=https://api.torbox.app
 OVERSEERR_AUTH=your_secret_auth_header_value
 
 # Service Port (optional)
-PORT=8080
+PORT=8978
 ```
 
 ### Step 3: Start the services
@@ -160,9 +181,9 @@ docker-compose up -d
 ```
 
 ### Step 4: Verify the services
-Health check for TorBox Updater:
+Health check for SchröDrive:
 ```bash
-curl http://localhost:8080/health
+curl http://localhost:8978/health
 ```
 
 Access Prowlarr web UI:
@@ -172,7 +193,7 @@ open http://localhost:9696
 
 ### Step 5: Configure Overseerr webhook
 In Overseerr Settings → Notifications → Add Webhook:
-- Webhook URL: `http://<your-host>:8080/webhook/overseerr`
+- Webhook URL: `http://<your-host>:8978/webhook/overseerr`
 - Authorization Header (optional): set to your `OVERSEERR_AUTH` value if used
 - JSON Payload:
 ```json
@@ -222,14 +243,14 @@ In Overseerr Settings → Notifications → Add Webhook:
 
 ### Step 6: Test the webhook
 ```bash
-curl -X POST http://localhost:8080/webhook/overseerr \
+curl -X POST http://localhost:8978/webhook/overseerr \
   -H "Content-Type: application/json" \
   -H "Authorization: your_secret_auth_header_value" \
   -d '{"subject":"Big Buck Bunny 2008","media":{"title":"Big Buck Bunny","year":2008}}'
 ```
 
 ### Stack details
-- `torbox-updater` on port 8080
+- `schrodrive` on port 8978
 - `prowlarr` on port 9696 (LinuxServer image)
 - Shared `media` network
 - Persistent `prowlarr_config` volume
@@ -251,18 +272,18 @@ Both trigger on pushes to `main`/`master` and manual dispatch.
 
 Build locally and push manually:
 ```bash
-docker build -t ghcr.io/moderniselife/torboxupdater:latest .
-docker push ghcr.io/moderniselife/torboxupdater:latest
+docker build -t ghcr.io/moderniselife/schrodrive:latest .
+docker push ghcr.io/moderniselife/schrodrive:latest
 ```
 
 Pull and run:
 ```bash
-docker run --rm -p 8080:8080 \
+docker run --rm -p 8978:8978 \
   -e PROWLARR_URL=http://prowlarr:9696 \
   -e PROWLARR_API_KEY=xxxxx \
   -e TORBOX_API_KEY=tb_xxxxx \
   -e OVERSEERR_AUTH=supersecret \
-  ghcr.io/moderniselife/torboxupdater:latest
+  ghcr.io/moderniselife/schrodrive:latest
 ```
 
 ## Notes

@@ -54,7 +54,13 @@ export async function searchProwlarr(query: string, opts?: {
 
   const base = config.prowlarrUrl.replace(/\/$/, "");
   const url = new URL("/api/v1/search", base);
-  const params: any = { query };
+  const originalQuery = String(query || "");
+  const stripTmdb = (q: string) => q.replace(/\s*TMDB\d+\b/gi, "").replace(/\s{2,}/g, " ").trim();
+  const withoutTmdb = stripTmdb(originalQuery);
+  const usedQuery = withoutTmdb || originalQuery;
+  const params: any = { query: usedQuery };
+  const searchType = 'search';
+  params.type = searchType;
   const categories = (opts?.categories?.length ? opts.categories : (config.prowlarrCategories?.length ? config.prowlarrCategories : undefined));
   if (categories?.length) params.categories = categories.join(",");
   const indexerIds = (opts?.indexerIds?.length ? opts.indexerIds : (config.prowlarrIndexerIds?.length ? config.prowlarrIndexerIds : undefined));
@@ -65,12 +71,14 @@ export async function searchProwlarr(query: string, opts?: {
   const maskedKey = config.prowlarrApiKey ? `${config.prowlarrApiKey.slice(0, 4)}…` : "unset";
   const started = Date.now();
   console.log(`[${new Date().toISOString()}][prowlarr] GET ${url.toString()}`, {
-    query,
+    query: originalQuery,
+    usedQuery,
     categories,
     indexerIds,
     limit,
     apikey: maskedKey,
     timeoutMs: config.prowlarrTimeoutMs,
+    type: searchType,
   });
   
   const res = await axios.get<ProwlarrResult[]>(url.toString(), {
@@ -101,7 +109,7 @@ export async function searchProwlarr(query: string, opts?: {
     throw err;
   });
 
-  const data = Array.isArray(res.data) ? res.data : [];
+  let data = Array.isArray(res.data) ? res.data : [];
   console.log(`[${new Date().toISOString()}][prowlarr] response`, {
     count: data.length,
     ms: Date.now() - started,
@@ -113,6 +121,88 @@ export async function searchProwlarr(query: string, opts?: {
       indexer: r.indexer,
     })),
   });
+
+  // Fallback: if no results and query contains a year, retry without the year
+  if (!data.length && /\b(19|20)\d{2}\b/.test(usedQuery)) {
+    const withoutYear = usedQuery.replace(/\b(19|20)\d{2}\b/g, "").replace(/\s{2,}/g, " ").trim();
+    if (withoutYear && withoutYear !== usedQuery) {
+      const started2 = Date.now();
+      const params2: any = { ...params, query: withoutYear };
+      console.log(`[${new Date().toISOString()}][prowlarr] fallback GET ${url.toString()}`, {
+        originalQuery,
+        usedQuery,
+        fallbackQuery: withoutYear,
+        categories,
+        indexerIds,
+        limit,
+        apikey: maskedKey,
+        timeoutMs: config.prowlarrTimeoutMs,
+        type: searchType,
+      });
+      const res2 = await axios.get<ProwlarrResult[]>(url.toString(), {
+        params: params2,
+        headers: { "X-Api-Key": config.prowlarrApiKey },
+        timeout: Math.max(5000, Math.min(config.prowlarrTimeoutMs || 15000, 120000)),
+      }).catch((err: any) => {
+        console.error(`[${new Date().toISOString()}][prowlarr] fallback request failed`, {
+          originalQuery,
+          fallbackQuery: withoutYear,
+          error: err?.message || String(err),
+          code: err?.code,
+          status: err?.response?.status,
+          statusText: err?.response?.statusText,
+          url: url.toString(),
+        });
+        throw err;
+      });
+      data = Array.isArray(res2.data) ? res2.data : [];
+      console.log(`[${new Date().toISOString()}][prowlarr] fallback response`, {
+        count: data.length,
+        ms: Date.now() - started2,
+        sample: data.slice(0, 5).map((r) => ({ title: r.title, seeders: r.seeders, size: r.size, indexer: r.indexer })),
+      });
+    }
+  }
+
+  // Fallback: if still no results and categories were used, try without categories
+  if (!data.length && categories?.length) {
+    const started3 = Date.now();
+    const params3: any = { ...params };
+    delete params3.categories;
+    console.log(`[${new Date().toISOString()}][prowlarr] fallback (no categories) GET ${url.toString()}`, {
+      originalQuery,
+      usedQuery,
+      categoriesRemoved: true,
+      indexerIds,
+      limit,
+      apikey: maskedKey,
+      timeoutMs: config.prowlarrTimeoutMs,
+      type: searchType,
+    });
+    const res3 = await axios.get<ProwlarrResult[]>(url.toString(), {
+      params: params3,
+      headers: { "X-Api-Key": config.prowlarrApiKey },
+      timeout: Math.max(5000, Math.min(config.prowlarrTimeoutMs || 15000, 120000)),
+    }).catch((err: any) => {
+      console.error(`[${new Date().toISOString()}][prowlarr] fallback (no categories) failed`, {
+        originalQuery,
+        usedQuery,
+        error: err?.message || String(err),
+        code: err?.code,
+        status: err?.response?.status,
+        statusText: err?.response?.statusText,
+        url: url.toString(),
+      });
+      throw err;
+    });
+    data = Array.isArray(res3.data) ? res3.data : [];
+    console.log(`[${new Date().toISOString()}][prowlarr] fallback (no categories) response`, {
+      count: data.length,
+      ms: Date.now() - started3,
+      sample: data.slice(0, 5).map((r) => ({ title: r.title, seeders: r.seeders, size: r.size, indexer: r.indexer })),
+    });
+  }
+
   return data;
 }
 

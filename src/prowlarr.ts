@@ -44,26 +44,56 @@ export async function searchProwlarr(query: string, opts?: {
     params["limit"] = String(opts.limit);
   }
 
+  const maskedKey = config.prowlarrApiKey ? `${config.prowlarrApiKey.slice(0, 4)}…` : "unset";
+  const started = Date.now();
+  console.log(`[${new Date().toISOString()}][prowlarr] GET ${url.toString()}`, {
+    query,
+    categories,
+    indexerIds: opts?.indexerIds,
+    limit: opts?.limit,
+    apikey: maskedKey,
+  });
   const res = await axios.get<ProwlarrResult[]>(url.toString(), {
     params,
     timeout: 45000, // Increased from 20s to 45s
   });
 
-  return Array.isArray(res.data) ? res.data : [];
+  const data = Array.isArray(res.data) ? res.data : [];
+  console.log(`[${new Date().toISOString()}][prowlarr] response`, {
+    count: data.length,
+    ms: Date.now() - started,
+    sample: data.slice(0, 5).map((r) => ({
+      title: r.title,
+      seeders: r.seeders,
+      size: r.size,
+      hasMagnet: !!(r.magnetUrl || r.guid || r.link),
+      indexer: r.indexer,
+    })),
+  });
+  return data;
 }
 
 export function pickBestResult(results: ProwlarrResult[]): ProwlarrResult | undefined {
   const withMagnet = results.filter((r) => getMagnet(r));
   const pool = withMagnet.length ? withMagnet : results;
-  return pool
+  const sorted = pool
     .slice()
-    .sort((a, b) => (b.seeders || 0) - (a.seeders || 0) || (b.size || 0) - (a.size || 0))
-    [0];
+    .sort((a, b) => (b.seeders || 0) - (a.seeders || 0) || (b.size || 0) - (a.size || 0));
+  const chosen = sorted[0];
+  console.log(`[${new Date().toISOString()}][prowlarr] pickBestResult`, {
+    inputCount: results.length,
+    poolCount: pool.length,
+    chosen: chosen ? { title: chosen.title, seeders: chosen.seeders, size: chosen.size } : null,
+  });
+  return chosen;
 }
 
 export function getMagnet(r: ProwlarrResult | undefined): string | undefined {
   if (!r) return undefined;
   const magnet = r.magnetUrl || r.guid || r.link;
-  if (typeof magnet === "string" && magnet.startsWith("magnet:")) return magnet;
+  const ok = typeof magnet === "string" && magnet.startsWith("magnet:");
+  console.log(`[${new Date().toISOString()}][prowlarr] getMagnet`, { hasCandidate: !!magnet, ok });
+  if (ok) return magnet;
   return undefined;
 }
+

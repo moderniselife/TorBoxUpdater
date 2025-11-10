@@ -55,12 +55,17 @@ function buildSearchFromRequest(r: MediaRequestLike): { query: string; categorie
 async function fetchApprovedRequests(): Promise<MediaRequestLike[]> {
   const base = config.overseerrUrl.replace(/\/$/, "");
   const url = `${base}/request`;
+  const started = Date.now();
+  console.log(`[${new Date().toISOString()}][poller->overseerr] GET ${url}`, {
+    params: { filter: "approved", sort: "modified", take: 50, skip: 0 },
+  });
   const res = await axios.get(url, {
     params: { filter: "approved", sort: "modified", take: 50, skip: 0 },
     headers: { "X-Api-Key": config.overseerrApiKey },
     timeout: 30000,
   });
   const results = res?.data?.results || [];
+  console.log(`[${new Date().toISOString()}][poller->overseerr] response`, { count: Array.isArray(results) ? results.length : 0, ms: Date.now() - started });
   return Array.isArray(results) ? results : [];
 }
 
@@ -70,31 +75,44 @@ export function startOverseerrPoller() {
 
   const processed = new Set<string>();
   const intervalMs = Math.max(5, Number(config.pollIntervalSeconds || 30)) * 1000;
+  console.log(`[${new Date().toISOString()}][poller] starting`, { intervalSeconds: Math.round(intervalMs / 1000) });
 
   const runOnce = async () => {
     try {
+      console.log(`[${new Date().toISOString()}][poller] tick`);
       const items = await fetchApprovedRequests();
+      console.log(`[${new Date().toISOString()}][poller] approved requests fetched`, { count: items.length });
       for (const r of items) {
         const id = String(r?.id ?? `${r?.mediaId ?? ""}:${r?.is4k ? "4k" : "hd"}`);
         if (!id) continue;
-        if (processed.has(id)) continue;
+        if (processed.has(id)) {
+          console.log(`[${new Date().toISOString()}][poller] skip already processed`, { id });
+          continue;
+        }
 
         const built = buildSearchFromRequest(r);
         if (!built) {
+          console.warn(`[${new Date().toISOString()}][poller] could not build query from request`, { id, media: r?.media });
           continue;
         }
 
         try {
+          console.log(`[${new Date().toISOString()}][poller->prowlarr] searching`, { id, query: built.query, categories: built.categories });
+          const t0 = Date.now();
           const results = await searchProwlarr(built.query, { categories: built.categories });
+          console.log(`[${new Date().toISOString()}][poller->prowlarr] results`, { id, count: results.length, ms: Date.now() - t0 });
           const best = pickBestResult(results);
+          console.log(`[${new Date().toISOString()}][poller->prowlarr] chosen`, { id, title: (best as any)?.title, seeders: (best as any)?.seeders, size: (best as any)?.size });
           const magnet = getMagnet(best);
           if (!magnet) {
-            console.warn("Poller: no magnet found", { query: built.query, id, best });
+            console.warn(`[${new Date().toISOString()}][poller] no magnet found`, { id, query: built.query });
             processed.add(id);
             continue;
           }
+          const teaser = magnet.slice(0, 80) + '...';
+          console.log(`[${new Date().toISOString()}][poller->torbox] adding magnet`, { id, title: (best as any)?.title, teaser });
           await addMagnetToTorbox(magnet, (best as any)?.title);
-          console.log("Poller: added to TorBox", { query: built.query, id, title: (best as any)?.title });
+          console.log(`[${new Date().toISOString()}][poller->torbox] added`, { id });
           processed.add(id);
           if (processed.size > 1000) {
             // Trim processed set
@@ -104,16 +122,16 @@ export function startOverseerrPoller() {
             }
           }
         } catch (err: any) {
-          console.error("Poller: processing error", err?.message || String(err));
+          console.error(`[${new Date().toISOString()}][poller] processing error`, err?.message || String(err));
         }
       }
     } catch (e: any) {
-      console.error("Poller: fetch error", e?.message || String(e));
+      console.error(`[${new Date().toISOString()}][poller] fetch error`, e?.message || String(e));
     }
   };
 
   // Start immediately and then on interval
   runOnce();
   setInterval(runOnce, intervalMs);
-  console.log(`Overseerr poller started (every ${Math.round(intervalMs / 1000)}s)`);
+  console.log(`[${new Date().toISOString()}][poller] started`, { everySeconds: Math.round(intervalMs / 1000) });
 }

@@ -189,6 +189,24 @@ export async function mountVirtualDrive(): Promise<void> {
       if ((config.mountVfsCacheMaxSize || "").trim()) args.push(`--vfs-cache-max-size=${config.mountVfsCacheMaxSize}`);
     }
 
+    // Ownership and permissions presentation for FUSE mount
+    if (typeof config.mountUid === "number") {
+      args.push("--uid", String(config.mountUid));
+    }
+    if (typeof config.mountGid === "number") {
+      args.push("--gid", String(config.mountGid));
+    }
+    if ((config.mountDirPerms || "").trim()) {
+      args.push(`--dir-perms=${config.mountDirPerms}`);
+    }
+    if ((config.mountFilePerms || "").trim()) {
+      args.push(`--file-perms=${config.mountFilePerms}`);
+    }
+    // Provide a sensible default umask if no explicit perms given
+    if (!(config.mountDirPerms || config.mountFilePerms)) {
+      args.push("--umask", "0022");
+    }
+
     // Ensure we capture rclone logs without conflicting with user-provided verbosity
     const logFile = path.join(tmpDir, `rclone-${m.remote.replace(":", "")}.log`);
     if (!hasUserLogFlags(config.mountOptions)) {

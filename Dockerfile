@@ -17,6 +17,7 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 RUN apk add --no-cache rclone fuse3 curl ca-certificates && update-ca-certificates
+RUN printf 'user_allow_other\n' >> /etc/fuse.conf || true
 COPY package*.json ./
 RUN npm install --omit=dev
 COPY --from=build /app/dist ./dist

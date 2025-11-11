@@ -62,6 +62,17 @@ function parseFromParentDirs(fullPath: string): Partial<Parsed> {
   return {};
 }
 
+function guessTitleFromFilename(baseNoExt: string): string {
+  let s = baseNoExt;
+  s = s.replace(/\[[^\]]*\]/g, " ");
+  s = s.replace(/\([^\)]*\)/g, " ");
+  s = s.replace(/[_.]/g, " ");
+  s = s.replace(/\b(480p|720p|1080p|2160p|4k|x264|x265|hevc|av1|hdr|dv|dolby|vision|webrip|web\-dl|bluray|bdrip|remux|hdtv|dvdrip|proper|repack|extended|remastered|dual|multi|ddp?\d(?:\.\d)?|dts(?:-hd)?|atmos)\b/gi, " ");
+  s = s.replace(/\s+/g, " ").trim();
+  s = s.replace(/[\\/:*?"<>|]/g, "-");
+  return s;
+}
+
 function parseFilename(fileName: string, fullPath: string): Parsed {
   const ext = path.extname(fileName);
   const baseNoExt = fileName.slice(0, -ext.length);
@@ -69,8 +80,15 @@ function parseFilename(fileName: string, fullPath: string): Parsed {
 
   const parentHints = parseFromParentDirs(fullPath);
 
+  let m = baseNoExt.match(/^(.*)\s*\((\d{4})\)\s*$/);
+  if (m) {
+    const title = sanitize(m[1]);
+    const year = Number(m[2]);
+    return { type: "movie", title, year, ext };
+  }
+
   // TV patterns: S01E02 or 1x02
-  let m = cleaned.match(/(.+?)\s*[\- ]?\bS(\d{1,2})E(\d{1,3})\b/i);
+  m = cleaned.match(/(.+?)\s*[\- ]?\bS(\d{1,2})E(\d{1,3})\b/i);
   if (m) {
     const show = sanitize(m[1]);
     const season = Number(m[2]);
@@ -94,17 +112,33 @@ function parseFilename(fileName: string, fullPath: string): Parsed {
   }
 
   // Movie heuristic: title (year) or title .2024.
-  m = cleaned.match(/^(.*)\s*\((\d{4})\)$/);
-  if (m) {
-    const title = sanitize(m[1]);
-    const year = Number(m[2]);
-    return { type: "movie", title, year, ext };
-  }
   m = cleaned.match(/^(.*?)[\s.\-]\b(19\d{2}|20\d{2}|21\d{2})\b/);
   if (m) {
     const title = sanitize(m[1]);
     const year = Number(m[2]);
     return { type: "movie", title, year, ext };
+  }
+
+  {
+    let pdir = path.dirname(fullPath);
+    for (let i = 0; i < 3; i++) {
+      const dn = path.basename(pdir);
+      let mm = dn.match(/^(.*)\s*\((\d{4})\)$/);
+      if (mm) {
+        const title = sanitize(mm[1]);
+        const year = Number(mm[2]);
+        return { type: "movie", title, year, ext };
+      }
+      mm = dn.match(/^(.*?)[\s.\-]\b(19\d{2}|20\d{2}|21\d{2})\b/);
+      if (mm) {
+        const title = sanitize(mm[1]);
+        const year = Number(mm[2]);
+        return { type: "movie", title, year, ext };
+      }
+      const next = path.dirname(pdir);
+      if (next === pdir) break;
+      pdir = next;
+    }
   }
 
   // Fallback to unknown, try parent hints
@@ -267,7 +301,21 @@ async function walkDir(root: string, acc: string[], limit: number) {
 export async function organizeOnce(opts?: { dryRun?: boolean; limit?: number }) {
   const dryRun = !!opts?.dryRun;
   const limit = opts?.limit ?? 10000;
-  const roots = [path.join(config.mountBase, "realdebrid"), path.join(config.mountBase, "torbox")];
+  const providerBases = [path.join(config.mountBase, "realdebrid"), path.join(config.mountBase, "torbox")];
+  const roots: string[] = [];
+  for (const b of providerBases) {
+    try {
+      const linksDir = path.join(b, "links");
+      const st = await fsp.stat(linksDir).catch(() => null);
+      if (st && st.isDirectory()) {
+        roots.push(linksDir);
+      } else {
+        roots.push(b);
+      }
+    } catch (_) {
+      roots.push(b);
+    }
+  }
   const files: string[] = [];
   for (const r of roots) {
     try {
@@ -281,7 +329,7 @@ export async function organizeOnce(opts?: { dryRun?: boolean; limit?: number }) 
   let processed = 0;
   for (const src of files) {
     const base = path.basename(src);
-    const parsed = parseFilename(base, src);
+    let parsed = parseFilename(base, src);
 
     if (parsed.type === "movie" && parsed.title) {
       const meta = config.tmdbApiKey
@@ -295,6 +343,16 @@ export async function organizeOnce(opts?: { dryRun?: boolean; limit?: number }) 
         : await tvmazeSearch(parsed.show, parsed.year);
       if (meta.canonicalTitle) parsed.show = meta.canonicalTitle;
       if (meta.canonicalYear) parsed.year = meta.canonicalYear;
+    } else if (parsed.type === "unknown") {
+      const guess = guessTitleFromFilename(base.slice(0, -path.extname(base).length));
+      if (guess) {
+        const meta = config.tmdbApiKey
+          ? await tmdbSearch(guess, "movie")
+          : await itunesMovieSearch(guess);
+        if (meta.confirmedType === "movie" || meta.canonicalTitle) {
+          parsed = { type: "movie", title: meta.canonicalTitle || guess, year: meta.canonicalYear, ext: path.extname(base) } as Parsed;
+        }
+      }
     }
 
     const dst = computeTarget(parsed, base);

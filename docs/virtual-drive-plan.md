@@ -110,3 +110,10 @@ Updated: 2025-11-11 10:48:00 +11:00
   - Anime/absolute episodes → `organized/TV/Show Name/Show Name - 0637.ext`
 - New envs: `TMDB_API_KEY`, `ORGANIZED_BASE`, `ORGANIZER_MODE` (symlink|copy|move), `RUN_ORGANIZER_WATCH`, `ORG_SCAN_INTERVAL_S`.
 - New CLI: `schrodrive organize [--watch] [--dry-run]` and integrated watch into `serve` via `RUN_ORGANIZER_WATCH=true`.
+
+Updated: 2025-11-11 11:24:00 +11:00
+
+- Mount service now auto-cleans stale/busy mountpoints:
+  - When `mkdir`/`readdir` fails with ENOTCONN/EBUSY/EIO, attempt `fusermount3 -uz`, then `fusermount -uz`, then `umount -l` (Linux). On macOS, `umount -f` then `diskutil unmount force`.
+  - Retries directory creation after cleanup and logs a warning.
+  - Also probes existing dirs with `readdir` to detect stale FUSE endpoints.

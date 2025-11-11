@@ -4,8 +4,50 @@ import * as path from "path";
 import { spawnSync, spawn } from "child_process";
 import { config, providersSet } from "./config";
 
+function isStaleMountErr(e: any): boolean {
+  const code = (e?.code || "").toString();
+  return code === "ENOTCONN" || code === "EBUSY" || code === "EIO";
+}
+
+function cleanupMountPath(p: string) {
+  try {
+    if (process.platform === "linux") {
+      // Try to lazily unmount FUSE mounts
+      spawnSync("fusermount3", ["-uz", p], { stdio: "ignore" });
+      spawnSync("fusermount", ["-uz", p], { stdio: "ignore" });
+      spawnSync("umount", ["-l", p], { stdio: "ignore" });
+    } else if (process.platform === "darwin") {
+      spawnSync("umount", ["-f", p], { stdio: "ignore" });
+      spawnSync("diskutil", ["unmount", "force", p], { stdio: "ignore" });
+    }
+  } catch {}
+}
+
 function ensureDir(p: string) {
-  if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
+  try {
+    if (!fs.existsSync(p)) {
+      fs.mkdirSync(p, { recursive: true });
+    } else {
+      // Touch directory to detect stale FUSE mountpoints
+      fs.readdirSync(p);
+    }
+  } catch (e: any) {
+    if (isStaleMountErr(e)) {
+      console.warn(`[${new Date().toISOString()}][mount] detected stale/busy mount at ${p}, attempting cleanup`);
+      cleanupMountPath(p);
+      const parent = path.dirname(p);
+      if (parent && parent !== p) cleanupMountPath(parent);
+      // Retry creation/access
+      try {
+        if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
+        fs.readdirSync(p);
+      } catch (e2) {
+        throw e2;
+      }
+    } else {
+      throw e;
+    }
+  }
 }
 
 function obscurePassword(password: string): string {
